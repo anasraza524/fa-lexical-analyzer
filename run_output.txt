@@ -1,0 +1,60 @@
+----------------------------------------------------------------
+ASSIGNMENT WORKED EXAMPLE
+----------------------------------------------------------------
+INPUT:  if (x == 10) return y + z;
+OUTPUT (Direct DFA):
+  [KEYWORD: if]
+  [SYMBOL: (]
+  [IDENTIFIER: x]
+  [OPERATOR: ==]
+  [NUMBER: 10]
+  [SYMBOL: )]
+  [KEYWORD: return]
+  [IDENTIFIER: y]
+  [OPERATOR: +]
+  [IDENTIFIER: z]
+  [SYMBOL: ;]
+
+----------------------------------------------------------------
+EDGE CASE REGRESSION SUITE
+----------------------------------------------------------------
+PASS - Simple if-statement
+PASS - While loop with float, no relational operator
+PASS - While loop with an operator outside the spec ('<') is flagged
+PASS - Empty string
+PASS - Whitespace only
+PASS - Keyword-prefixed identifier is NOT split ('returnValue')
+PASS - Exact keyword match
+PASS - Identifier with digits ('a1b2')
+PASS - Single-letter identifier
+PASS - '==' takes priority over two '=' (maximal munch)
+PASS - Single '=' at end of input (no second '=' to look ahead to)
+PASS - Chained '=' ('a===b') greedily takes '==' first, then '=' (maximal munch)
+PASS - Adjacent operators with no whitespace ('a=-b')
+PASS - Plain integer
+PASS - Plain float
+PASS - Trailing dot with no following digit ('5.') splits into NUMBER + ERROR
+PASS - Two decimal points ('3.14.15') splits into NUMBER + ERROR + NUMBER
+PASS - Number immediately followed by letters ('123abc') is a single ERROR token
+PASS - Leading dot with no digit before it ('.5') - dot alone is an ERROR, then NUMBER
+PASS - Unknown character '@' is reported, not silently dropped
+PASS - Multiple unknown characters in a row ('#$?')
+PASS - Underscore is not a letter or digit per spec, so it errors
+PASS - No spaces at all between tokens still tokenizes correctly
+PASS - Tabs, newlines and extra spaces are all treated as separators
+PASS - All special characters recognized
+PASS - All arithmetic operators recognized
+PASS - Nested block with mixed tokens
+
+----------------------------------------------------------------
+PERFORMANCE ANALYSIS (Direct DFA vs Table-Driven)
+----------------------------------------------------------------
+Statements         Tokens         Direct DFA (ms)  Table-Driven(ms) Chars           
+100                825            0.355            0.371            2888             
+1000               8250           0.694            0.748            30113            
+10000              82500          2.000            2.093            313613           
+100000             825000         22.535           24.285           3261113          
+
+================================================================
+TEST SUMMARY: 27 passed, 0 failed
+================================================================
