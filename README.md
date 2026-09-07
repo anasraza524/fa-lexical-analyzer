@@ -6,6 +6,22 @@ two approaches can be compared directly, as required by the report.
 
 ---
 
+## Screenshots
+
+### DFA Lexer — Token Log
+![Token Log](images/screenshot_1.png)
+
+### DFA Lexer — Report Tab
+![Report Tab](images/screenshot_2.png)
+
+### DFA Lexer — DFA Diagram
+![DFA Diagram](images/screenshot_3.png)
+
+### Turing Machine Mode
+![Turing Machine](images/screenshot_4.png)
+
+---
+
 ## Files
 
 | File | Purpose |
@@ -18,7 +34,12 @@ two approaches can be compared directly, as required by the report.
 | `src/Main.java` | CLI entry point — worked example, 27-case regression suite, performance benchmark, file input |
 | `src/LexerUI.java` | Swing GUI — code editor, token log, report tab, DFA diagram |
 | `src/DfaPanel.java` | Graphics2D DFA state diagram (used by LexerUI) |
+| `src/TuringMachinePanel.java` | Turing Machine mode — Japanese language acceptor with tape visualization |
+| `run.sh` | One-command build + run script |
 | `run_output.txt` | Captured output of a full CLI run (used for the report's Results section) |
+| `GUIDE_DFA_LEXER.md` | Full DFA code explanation + viva Q&A |
+| `GUIDE_TURING_MACHINE.md` | Full TM code explanation + viva Q&A |
+| `GUIDE_CODE_ARCHITECTURE.md` | How the entire codebase is structured and built |
 
 ---
 
@@ -40,16 +61,23 @@ echo 'export PATH="/usr/local/opt/openjdk@17/bin:$PATH"' >> ~/.zprofile
 
 ## Run
 
-### GUI (recommended)
+### Quickest way (one command)
+```bash
+./run.sh
+```
+
+### GUI (manual)
 ```bash
 cd out
 java LexerUI
 ```
+
 Opens a window with:
 - Code editor (left) — type or paste any source code
 - Token Log tab — color-coded token table (line + column included)
 - Report tab — token breakdown, cross-validation (Direct vs Table-Driven), per-run performance
 - DFA Diagram tab — live state diagram highlighting active states for the current input
+- **Turing Machine button** (top bar) — switches to TM mode (Japanese language acceptor)
 
 ### CLI
 ```bash
@@ -95,6 +123,44 @@ java Main path/to/file.txt     # tokenize a source file
 
 ---
 
+## Turing Machine Mode
+
+Click **⚙ Turing Machine** in the top bar to switch modes.
+
+The TM checks whether input text is written entirely in Japanese.
+
+**Formal definition:**
+- States: `q_scan` (start), `q_accept`, `q_reject`
+- δ(q_scan, Japanese/neutral) → q_scan, move RIGHT
+- δ(q_scan, ␣) → q_accept, HALT
+- δ(q_scan, other) → q_reject, HALT
+
+**Accepted character ranges:**
+
+| Range | Unicode | Script |
+|-------|---------|--------|
+| Hiragana | U+3040–U+309F | あいうえお |
+| Katakana | U+30A0–U+30FF | アイウエオ |
+| Kanji | U+4E00–U+9FAF | 日本語 (shared with Chinese) |
+| JP Punctuation | U+3000–U+303F | 。、「」 |
+| Full-width | U+FF00–U+FFEF | Ａ１ |
+| Neutral | whitespace, digits, .,!?;() | always allowed |
+
+**Test cases (click 🧪 Run All Tests):**
+
+| Category | Input | Expected |
+|----------|-------|----------|
+| Hiragana only | `こんにちは` | ACCEPT |
+| Katakana only | `コンピューター` | ACCEPT |
+| Kanji + Hiragana | `私は学生です` | ACCEPT |
+| English | `Hello, how are you?` | REJECT at 'H' |
+| JP + English | `こんにちは hello` | REJECT at 'h' |
+| JP + Arabic | `私は学生ですقهوة` | REJECT at 'ق' |
+| Empty string | `` | ACCEPT (vacuously true) |
+| Neutral only | `123!?` | ACCEPT |
+
+---
+
 ## CCP Requirements Checklist
 
 | Requirement | Fulfilled |
@@ -129,3 +195,13 @@ Benchmark (best of 7 runs, JIT warmed up):
 | 100,000 | 825,000 | ~32 ms | ~35 ms |
 
 Direct DFA is consistently faster due to no table-lookup indirection.
+
+---
+
+## Guides
+
+| File | Contents |
+|------|----------|
+| `GUIDE_DFA_LEXER.md` | DFA theory, code walkthrough, all 27 edge cases, 15 viva Q&As |
+| `GUIDE_TURING_MACHINE.md` | TM formal definition, code walkthrough, test categories, 20 viva Q&As |
+| `GUIDE_CODE_ARCHITECTURE.md` | Project structure, dependency graph, design patterns, 10 viva Q&As |
