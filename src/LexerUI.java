@@ -1,25 +1,35 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.*;
 import java.util.List;
 
 public class LexerUI extends JFrame {
 
+    // ── DFA mode components ──────────────────────────────────────────
     private final JTextArea codeInput = new JTextArea();
     private final JTable tokenTable;
     private final DefaultTableModel tokenModel;
     private final JTextArea reportArea = new JTextArea();
     private final DfaPanel dfaPanel = new DfaPanel();
     private final JComboBox<String> lexerChoice = new JComboBox<>(new String[]{"Direct DFA", "Table-Driven"});
+    private final JButton analyzeBtn = new JButton("▶  Analyze");
+
+    // ── TM mode ──────────────────────────────────────────────────────
+    private final TuringMachinePanel tmPanel = new TuringMachinePanel();
+
+    // ── Shared ───────────────────────────────────────────────────────
     private final JLabel statusBar = new JLabel(" Ready");
+    private final JToggleButton tmToggle = new JToggleButton("⚙  Turing Machine");
+    private final JPanel dfaModePanel;   // holds the full DFA split layout
+    private final JPanel contentWrapper; // swaps between DFA and TM panels
 
     public LexerUI() {
         super("CCP Lexical Analyzer");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(1100, 700);
+        setSize(1150, 720);
         setLocationRelativeTo(null);
 
+        // ── Token table ──────────────────────────────────────────────
         tokenModel = new DefaultTableModel(new String[]{"#", "Type", "Lexeme", "Line", "Col"}, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -35,32 +45,62 @@ public class LexerUI extends JFrame {
         reportArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         reportArea.setEditable(false);
 
-        JButton analyzeBtn = new JButton("▶  Analyze");
         analyzeBtn.addActionListener(e -> analyze());
+
+        // ── Top bar ──────────────────────────────────────────────────
+        tmToggle.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        tmToggle.setForeground(new Color(60, 60, 180));
 
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         topBar.add(new JLabel("Lexer:"));
         topBar.add(lexerChoice);
         topBar.add(analyzeBtn);
+        topBar.add(Box.createHorizontalStrut(20));
+        topBar.add(new JSeparator(SwingConstants.VERTICAL));
+        topBar.add(Box.createHorizontalStrut(8));
+        topBar.add(tmToggle);
 
+        // ── DFA mode panel ───────────────────────────────────────────
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                inputPanel(), outputTabs());
+                buildInputPanel(), buildOutputTabs());
         split.setDividerLocation(420);
         split.setResizeWeight(0.38);
+        dfaModePanel = new JPanel(new BorderLayout());
+        dfaModePanel.add(split, BorderLayout.CENTER);
 
-        add(topBar, BorderLayout.NORTH);
-        add(split, BorderLayout.CENTER);
-        add(statusBar, BorderLayout.SOUTH);
+        // ── Content wrapper (card-style swap) ────────────────────────
+        contentWrapper = new JPanel(new CardLayout());
+        contentWrapper.add(dfaModePanel, "DFA");
+        contentWrapper.add(tmPanel,      "TM");
+
+        add(topBar,        BorderLayout.NORTH);
+        add(contentWrapper, BorderLayout.CENTER);
+        add(statusBar,     BorderLayout.SOUTH);
+
+        // ── Toggle listener ──────────────────────────────────────────
+        tmToggle.addActionListener(e -> {
+            CardLayout cl = (CardLayout) contentWrapper.getLayout();
+            if (tmToggle.isSelected()) {
+                tmToggle.setText("◀  Back to Lexer");
+                cl.show(contentWrapper, "TM");
+                statusBar.setText("  Turing Machine mode — Japanese language acceptor");
+            } else {
+                tmToggle.setText("⚙  Turing Machine");
+                cl.show(contentWrapper, "DFA");
+                statusBar.setText("  DFA Lexer mode");
+            }
+        });
 
         analyze();
         setVisible(true);
     }
 
-    private JPanel inputPanel() {
+    // ── DFA mode helpers ─────────────────────────────────────────────
+
+    private JPanel buildInputPanel() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBorder(BorderFactory.createTitledBorder("Source Code"));
         p.add(new JScrollPane(codeInput), BorderLayout.CENTER);
-
         JButton clearBtn = new JButton("Clear");
         clearBtn.addActionListener(e -> codeInput.setText(""));
         JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -69,10 +109,10 @@ public class LexerUI extends JFrame {
         return p;
     }
 
-    private JTabbedPane outputTabs() {
+    private JTabbedPane buildOutputTabs() {
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Token Log", new JScrollPane(tokenTable));
-        tabs.addTab("Report", new JScrollPane(reportArea));
+        tabs.addTab("Token Log",   new JScrollPane(tokenTable));
+        tabs.addTab("Report",      new JScrollPane(reportArea));
         tabs.addTab("DFA Diagram", new JScrollPane(dfaPanel));
         return tabs;
     }
@@ -85,18 +125,13 @@ public class LexerUI extends JFrame {
                 ? new DirectDfaLexer(src).tokenize()
                 : new TableDrivenLexer(src).tokenize();
 
-        // --- Token Log ---
         tokenModel.setRowCount(0);
         for (int i = 0; i < tokens.size(); i++) {
             Token t = tokens.get(i);
             tokenModel.addRow(new Object[]{i + 1, t.getType().name(), t.getLexeme(), t.getLine(), t.getColumn()});
         }
         colorizeRows();
-
-        // --- Report ---
         buildReport(src, tokens, useDirect);
-
-        // --- DFA ---
         dfaPanel.setTokens(tokens);
         dfaPanel.repaint();
 
@@ -128,7 +163,6 @@ public class LexerUI extends JFrame {
     }
 
     private void buildReport(String src, List<Token> tokens, boolean useDirect) {
-        // Run both lexers for cross-validation
         List<Token> direct = new DirectDfaLexer(src).tokenize();
         List<Token> table  = new TableDrivenLexer(src).tokenize();
 
@@ -137,10 +171,10 @@ public class LexerUI extends JFrame {
         sb.append("Input length : ").append(src.length()).append(" chars\n");
         sb.append("Total tokens : ").append(tokens.size()).append("\n");
 
-        long kw = tokens.stream().filter(t -> t.getType() == TokenType.KEYWORD).count();
-        long id = tokens.stream().filter(t -> t.getType() == TokenType.IDENTIFIER).count();
+        long kw  = tokens.stream().filter(t -> t.getType() == TokenType.KEYWORD).count();
+        long id  = tokens.stream().filter(t -> t.getType() == TokenType.IDENTIFIER).count();
         long num = tokens.stream().filter(t -> t.getType() == TokenType.NUMBER).count();
-        long op = tokens.stream().filter(t -> t.getType() == TokenType.OPERATOR).count();
+        long op  = tokens.stream().filter(t -> t.getType() == TokenType.OPERATOR).count();
         long sym = tokens.stream().filter(t -> t.getType() == TokenType.SYMBOL).count();
         long err = tokens.stream().filter(t -> t.getType() == TokenType.ERROR).count();
 
@@ -152,29 +186,24 @@ public class LexerUI extends JFrame {
         sb.append(String.format("  SYMBOL     : %d%n", sym));
         sb.append(String.format("  ERROR      : %d%n", err));
 
-        // Cross-validation
         String dStr = joinTokens(direct);
         String tStr = joinTokens(table);
         boolean agree = dStr.equals(tStr);
         sb.append("\nCross-validation (Direct vs Table-Driven): ")
           .append(agree ? "PASS ✓" : "MISMATCH ✗").append("\n");
-
         if (!agree) {
-            sb.append("  Direct  : ").append(dStr).append("\n");
-            sb.append("  Table   : ").append(tStr).append("\n");
+            sb.append("  Direct : ").append(dStr).append("\n");
+            sb.append("  Table  : ").append(tStr).append("\n");
         }
 
-        // Performance
         sb.append("\n--- Performance (this input) ---\n");
         int RUNS = 200;
         long t0 = System.nanoTime();
         for (int i = 0; i < RUNS; i++) new DirectDfaLexer(src).tokenize();
         long directNs = (System.nanoTime() - t0) / RUNS;
-
         long t1 = System.nanoTime();
         for (int i = 0; i < RUNS; i++) new TableDrivenLexer(src).tokenize();
         long tableNs = (System.nanoTime() - t1) / RUNS;
-
         sb.append(String.format("  Direct DFA   : %.3f ms (avg over %d runs)%n", directNs / 1e6, RUNS));
         sb.append(String.format("  Table-Driven : %.3f ms (avg over %d runs)%n", tableNs / 1e6, RUNS));
 
