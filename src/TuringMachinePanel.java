@@ -244,36 +244,31 @@ public class TuringMachinePanel extends JPanel {
 
         char[] tape = buildTape(input);
         List<Step> steps = new ArrayList<>();
-        String state = Q_SCAN;
-        int head = 0, rejectPos = -1;
-        char rejectChar = 0;
+        List<Integer> rejectPositions = new ArrayList<>();
+        int head = 0;
 
+        // Scan the ENTIRE tape — do NOT stop at first rejection.
+        // Every rejected character is recorded; the final verdict is
+        // q_accept only if rejectPositions is empty.
         while (true) {
             char symbol = tape[head];
-            String classification;
-            String nextState;
-
             if (symbol == BLANK) {
-                classification = "End of tape (␣)";
-                nextState = Q_ACCEPT;
-                steps.add(new Step(steps.size() + 1, state, head, symbol, classification, nextState));
-                state = Q_ACCEPT;
+                steps.add(new Step(steps.size() + 1, Q_SCAN, head, symbol,
+                        "End of tape (␣)", rejectPositions.isEmpty() ? Q_ACCEPT : Q_REJECT));
                 break;
             } else if (isAccepted(symbol)) {
-                classification = classifyChar(symbol);
-                nextState = Q_SCAN;
-                steps.add(new Step(steps.size() + 1, state, head, symbol, classification, nextState));
+                steps.add(new Step(steps.size() + 1, Q_SCAN, head, symbol,
+                        classifyChar(symbol), Q_SCAN));
                 head++;
             } else {
-                classification = classifyRejected(symbol);
-                nextState = Q_REJECT;
-                steps.add(new Step(steps.size() + 1, state, head, symbol, classification, nextState));
-                state = Q_REJECT;
-                rejectPos = head;
-                rejectChar = symbol;
-                break;
+                rejectPositions.add(head);
+                steps.add(new Step(steps.size() + 1, Q_SCAN, head, symbol,
+                        classifyRejected(symbol), Q_REJECT));
+                head++;
             }
         }
+
+        String finalState = rejectPositions.isEmpty() ? Q_ACCEPT : Q_REJECT;
 
         for (Step s : steps) {
             traceModel.addRow(new Object[]{
@@ -282,9 +277,9 @@ public class TuringMachinePanel extends JPanel {
             });
         }
 
-        renderTape(tape, rejectPos == -1 ? head : rejectPos, state);
+        renderTape(tape, rejectPositions, finalState);
 
-        if (state.equals(Q_ACCEPT)) {
+        if (finalState.equals(Q_ACCEPT)) {
             if (input.isEmpty()) {
                 resultLabel.setText("  ACCEPTED ✅  — Empty input: TM reached ␣ immediately → q_accept (vacuously true).");
             } else {
@@ -293,9 +288,14 @@ public class TuringMachinePanel extends JPanel {
             resultLabel.setBackground(new Color(200, 240, 200));
             resultLabel.setForeground(new Color(0, 100, 0));
         } else {
-            resultLabel.setText(String.format(
-                "  REJECTED ❌  — Position %d: '%c' (U+%04X) is not Japanese.",
-                rejectPos, rejectChar, (int) rejectChar));
+            StringBuilder sb = new StringBuilder("  REJECTED ❌  — Non-Japanese at position(s): ");
+            for (int i = 0; i < rejectPositions.size(); i++) {
+                int pos = rejectPositions.get(i);
+                char ch = tape[pos];
+                if (i > 0) sb.append(", ");
+                sb.append(String.format("%d:'%c'(U+%04X)", pos, ch, (int) ch));
+            }
+            resultLabel.setText(sb.toString());
             resultLabel.setBackground(new Color(255, 210, 210));
             resultLabel.setForeground(new Color(160, 0, 0));
         }
@@ -326,7 +326,7 @@ public class TuringMachinePanel extends JPanel {
 
     // ── Tape renderer ────────────────────────────────────────────────
 
-    private void renderTape(char[] tape, int headPos, String finalState) {
+    private void renderTape(char[] tape, List<Integer> rejectPositions, String finalState) {
         tapePanel.removeAll();
         for (int i = 0; i < tape.length; i++) {
             JPanel cell = new JPanel(new BorderLayout());
@@ -340,16 +340,25 @@ public class TuringMachinePanel extends JPanel {
             idxLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
             idxLabel.setForeground(Color.GRAY);
 
-            if (i == headPos) {
-                cell.setBackground(finalState.equals(Q_REJECT)
-                        ? new Color(255, 160, 160) : new Color(160, 220, 160));
+            boolean isRejectCell = rejectPositions.contains(i);
+            boolean isBlank = tape[i] == BLANK;
+
+            if (isRejectCell) {
+                cell.setBackground(new Color(255, 160, 160));
                 JLabel arrow = new JLabel("▲", SwingConstants.CENTER);
                 arrow.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
-                arrow.setForeground(Color.DARK_GRAY);
+                arrow.setForeground(new Color(160, 0, 0));
                 cell.add(arrow, BorderLayout.SOUTH);
-            } else if (tape[i] == BLANK) {
-                cell.setBackground(new Color(230, 230, 230));
+            } else if (isBlank) {
+                cell.setBackground(finalState.equals(Q_ACCEPT)
+                        ? new Color(160, 220, 160) : new Color(230, 230, 230));
                 charLabel.setForeground(Color.GRAY);
+                if (finalState.equals(Q_ACCEPT)) {
+                    JLabel arrow = new JLabel("▲", SwingConstants.CENTER);
+                    arrow.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+                    arrow.setForeground(Color.DARK_GRAY);
+                    cell.add(arrow, BorderLayout.SOUTH);
+                }
             } else {
                 cell.setBackground(Color.WHITE);
             }
