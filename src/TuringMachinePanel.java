@@ -37,38 +37,58 @@ public class TuringMachinePanel extends JPanel {
 
     private static final TestCase[] TEST_CASES = {
         // Category 1 — Japanese only (ACCEPT)
-        new TestCase("Cat1: Hiragana only",              "こんにちは",           true),
-        new TestCase("Cat1: Katakana only",              "コンピューター",        true),
-        new TestCase("Cat1: Kanji + Hiragana",           "私は学生です",          true),
-        new TestCase("Cat1: Hiragana + JP punctuation",  "すみません、ありがとう", true),
+        new TestCase("Cat1: Hiragana only",              "こんにちは",            true),
+        new TestCase("Cat1: Katakana only",              "コンピューター",         true),
+        new TestCase("Cat1: Kanji + Hiragana",           "私は学生です",           true),
+        new TestCase("Cat1: Hiragana + JP punct",        "すみません、ありがとう",  true),
+        new TestCase("Cat1: Kanji only",                 "漢字",                  true),
+        new TestCase("Cat1: Mixed all JP scripts",       "漢字ひらがなカタカナ",   true),
 
-        // Category 2 — Chinese only (REJECT)
-        // Note: 你好吗 / 我是学生 / 谢谢你 are all in shared CJK U+4E00-9FAF
-        // (valid Japanese Kanji range) → TM accepts them as ambiguous Kanji.
-        // Only characters in Chinese-exclusive blocks trigger rejection.
-        new TestCase("Cat2: Simplified Chinese",         "你好吗",               true),  // ambiguous — see note
-        new TestCase("Cat2: Chinese sentence",           "我是学生",              true),  // ambiguous — see note
-        new TestCase("Cat2: Chinese thanks",             "谢谢你",               true),  // ambiguous — see note
+        // Category 2 — Chinese only
+        // Shared CJK U+4E00-9FAF is valid Japanese Kanji → ACCEPT (ambiguous)
+        new TestCase("Cat2: Chinese (shared Kanji)",     "你好吗",                true),
+        new TestCase("Cat2: Chinese (shared Kanji) 2",   "我是学生",               true),
 
-        // Category 3 — English only (REJECT)
-        new TestCase("Cat3: English sentence",           "Hello, how are you?",  false),
+        // Category 3 — English (REJECT)
+        new TestCase("Cat3: English sentence",           "Hello",                 false),
+        new TestCase("Cat3: English + JP",               "こんにちはHello",        false),
 
-        // Category 4 — Mixed Japanese + Chinese (REJECT on Chinese-exclusive chars)
-        new TestCase("Cat4: JP + Chinese mix",           "こんにちは你好",         true),  // ambiguous — see note
-        new TestCase("Cat4: JP + Chinese mix 2",         "私は你好です",           true),  // ambiguous — see note
+        // Category 4 — Numbers (REJECT)
+        new TestCase("Cat4: ASCII digits",               "123",                   false),
+        new TestCase("Cat4: JP + ASCII digits",          "こんにちは123",          false),
+        new TestCase("Cat4: Full-width digits",          "１２３",                false),
+        new TestCase("Cat4: JP + full-width digits",     "こんにちは１２３",       false),
 
-        // Category 5 — Mixed Japanese + English (REJECT)
-        new TestCase("Cat5: JP + English (h)",           "こんにちは hello",      false),
-        new TestCase("Cat5: JP + English (s)",           "私は student です",     false),
+        // Category 5 — Spaces/whitespace (REJECT)
+        new TestCase("Cat5: Space in middle",            "こんにちは 世界",        false),
+        new TestCase("Cat5: Leading space",              " こんにちは",            false),
+        new TestCase("Cat5: Tab",                        "こんにちは\t世界",       false),
+        new TestCase("Cat5: Newline",                    "こんにちは\n世界",       false),
 
-        // Category 6 — 3+ languages (REJECT)
-        new TestCase("Cat6: JP + Chinese + English",     "こんにちは你好 hello",   false),
-        new TestCase("Cat6: JP + Arabic",                "私は学生ですقهوة",      false),
+        // Category 6 — Punctuation/symbols (REJECT)
+        new TestCase("Cat6: Exclamation",                "こんにちは!",            false),
+        new TestCase("Cat6: Question mark",              "こんにちは?",            false),
+        new TestCase("Cat6: JP period 。",               "日本語。",               true),  // U+3002 JP punct range
+        new TestCase("Cat6: JP comma 、",                "日本語、",               true),  // U+3001 JP punct range
+        new TestCase("Cat6: @ symbol",                   "こんにちは@",            false),
 
-        // Category 7 — Edge cases
-        new TestCase("Cat7: Empty string",               "",                     true),
-        new TestCase("Cat7: Neutral only (123!?)",       "123!?",                true),
-        new TestCase("Cat7: Pure Kanji (ambiguous)",     "学校",                  true),
+        // Category 7 — Other languages (REJECT)
+        new TestCase("Cat7: Arabic",                     "مرحبا",                 false),
+        new TestCase("Cat7: Korean",                     "한국어",                 false),
+        new TestCase("Cat7: JP + Arabic",                "私は学生ですقهوة",       false),
+        new TestCase("Cat7: JP + Korean",                "こんにちは한국어",        false),
+
+        // Category 8 — Emoji (REJECT)
+        new TestCase("Cat8: Emoji at end",               "こんにちは😀",           false),
+        new TestCase("Cat8: Emoji at start",             "😀こんにちは",           false),
+        new TestCase("Cat8: Emoji only",                 "😀😂🔥",               false),
+
+        // Category 9 — Edge cases
+        new TestCase("Cat9: Empty string",               "",                      true),
+        new TestCase("Cat9: Pure Kanji (ambiguous)",     "学校",                   true),
+        new TestCase("Cat9: Single hiragana",            "あ",                    true),
+        new TestCase("Cat9: Single digit",               "1",                     false),
+        new TestCase("Cat9: Single space",               " ",                     false),
     };
 
     // ── Step record ──────────────────────────────────────────────────
@@ -98,11 +118,11 @@ public class TuringMachinePanel extends JPanel {
         JLabel desc = new JLabel(
             "<html><b>TM Definition:</b> &nbsp;"
           + "States: {q_scan, q_accept, q_reject} &nbsp;|&nbsp; "
-          + "δ(q_scan, Japanese/neutral) → q_scan, R &nbsp;|&nbsp; "
+          + "δ(q_scan, Japanese) → q_scan, R &nbsp;|&nbsp; "
           + "δ(q_scan, ␣) → q_accept &nbsp;|&nbsp; "
-          + "δ(q_scan, other) → q_reject"
+          + "δ(q_scan, non-Japanese) → q_reject"
           + "&nbsp;&nbsp;<font color='gray'>"
-          + "Note: shared CJK Kanji (U+4E00–9FAF) accepted as valid Japanese.</font></html>");
+          + "Accepted: Hiragana, Katakana, Kanji, JP punctuation. Spaces/digits/symbols → REJECT.</font></html>");
         desc.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         desc.setBorder(BorderFactory.createEmptyBorder(2, 2, 4, 2));
 
@@ -268,7 +288,7 @@ public class TuringMachinePanel extends JPanel {
             if (input.isEmpty()) {
                 resultLabel.setText("  ACCEPTED ✅  — Empty input: TM reached ␣ immediately → q_accept (vacuously true).");
             } else {
-                resultLabel.setText("  ACCEPTED ✅  — All characters are Japanese (or neutral).");
+                resultLabel.setText("  ACCEPTED ✅  — All characters are Japanese.");
             }
             resultLabel.setBackground(new Color(200, 240, 200));
             resultLabel.setForeground(new Color(0, 100, 0));
@@ -368,27 +388,34 @@ public class TuringMachinePanel extends JPanel {
     }
 
     private static boolean isJapanese(char c) {
-        // Hiragana
+        // Hiragana U+3040-309F
         if (c >= 0x3040 && c <= 0x309F) return true;
-        // Katakana
+        // Katakana U+30A0-30FF
         if (c >= 0x30A0 && c <= 0x30FF) return true;
-        // Shared CJK Unified Ideographs (Kanji — also used in Chinese, ambiguous)
+        // Shared CJK Unified Ideographs (Kanji) U+4E00-9FAF
         if (c >= 0x4E00 && c <= 0x9FAF) return true;
-        // Japanese punctuation / CJK Symbols
+        // Japanese punctuation / CJK Symbols U+3000-303F
+        // Excludes digits and Latin — only ideographic punctuation lives here
         if (c >= 0x3000 && c <= 0x303F) return true;
-        // Full-width forms
-        if (c >= 0xFF00 && c <= 0xFFEF) return true;
-        // Katakana Phonetic Extensions
+        // Full-width forms U+FF00-FFEF — EXCLUDING full-width digits FF10-FF19
+        // and full-width Latin letters FF21-FF3A / FF41-FF5A
+        if (c >= 0xFF00 && c <= 0xFFEF) {
+            if (c >= 0xFF10 && c <= 0xFF19) return false; // full-width digits 0-9
+            if (c >= 0xFF21 && c <= 0xFF3A) return false; // full-width A-Z
+            if (c >= 0xFF41 && c <= 0xFF5A) return false; // full-width a-z
+            return true;
+        }
+        // Katakana Phonetic Extensions U+31F0-31FF
         if (c >= 0x31F0 && c <= 0x31FF) return true;
-        // Halfwidth Katakana
+        // Halfwidth Katakana U+FF65-FF9F
         if (c >= 0xFF65 && c <= 0xFF9F) return true;
         return false;
     }
 
+    // Nothing is neutral — every non-Japanese character causes REJECT.
+    // Spaces, digits, punctuation, symbols are all invalid per project spec.
     private static boolean isNeutral(char c) {
-        return Character.isWhitespace(c)
-            || Character.isDigit(c)
-            || ".,!?:;'\"()-".indexOf(c) >= 0;
+        return false;
     }
 
     private static String classifyChar(char c) {
